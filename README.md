@@ -1,3 +1,22 @@
+### Venom-tls - TLS support for Venom
+基于Venom内网穿透，增加TLS支持：
+Based on Venom, TLS supported is added.
+
+#### 支持TLS1.3
+全局使用tls1.3，使证书加密在流量中，通信更隐蔽。将ssl.crt、ssl.key放置在可执行文件同一目录下即可。
+Use tls1.3 globally to hide the certificate into the encrypted traffic. Put ssl.crt, ssl.key into the same directory with the executable then it works.
+
+#### 隐蔽SNI
+对于公网IP作为目的地址的，反查域名填入TLS SNI字段，使通信流量更像业务通信；对于内网IP作为目的地址的，或反查无结果的，则TLS SNI字段置空。域名查询通过ipchaxun.com。
+For Internet IP as destination IP, Venom-tls lookup a domain by IP into TLS SNI to make traffic look like normal traffic. For Intranet IP as destination IP or failed lookup situations, TLS SNI is not set. Domain lookup is through ipchaxun.com.
+
+<img src="docs/sni.png" width="80%" height="80%" />
+
+注：需要go 1.21以上版本可以编译成功。
+Note: You need go 1.21 above to compile.
+注：本工具仅用于学习和研究，请勿用于非法用途。
+Note: This tool is just for study and research. Make sure not using it to illegal purpose.
+
 ## Venom - A Multi-hop Proxy for Penetration Testers
 
 [简体中文](README.md)　｜　[English](README-en.md)

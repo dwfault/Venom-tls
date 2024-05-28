@@ -37,7 +37,7 @@ func init() {
 
 func usage() {
 	ShowBanner()
-	fmt.Fprintf(os.Stderr, `Venom version: 1.1
+	fmt.Fprintf(os.Stderr, `Venom version: 1.1 & 1.3
 
 Usage:
 	$ ./venom_admin
@@ -86,7 +86,7 @@ func ShowBanner() {
 
 func PrintWindowsBanner() {
 	fmt.Printf(`
-    ____   ____  { v1.1  author: Dlive }
+    ____   ____  {v1.1 author: Dlive} & {v1.3 modder: dwfault}
     \   \ /   /____   ____   ____   _____
      \   Y   // __ \ /    \ /    \ /     \
       \     /\  ___/|   |  (  <_> )  Y Y  \
@@ -109,7 +109,7 @@ func PrintBanner() {
          ░░    ░     ░   ░ ░░ ░ ░ ▒ ░      ░   
           ░    ░  ░        ░    ░ ░        ░   
          ░                                     
-               { v1.1 author: Dlive }          
+		 {v1.1 author: Dlive} & {v1.3 modder: dwfault}
 `)
 }
 

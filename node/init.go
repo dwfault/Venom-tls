@@ -15,10 +15,24 @@ var ERR_UNKNOWN_CMD = errors.New("Unknown command type")
 
 func ServerInitConnection(conn net.Conn) (bool, *Node) {
 	// 端口重用模式下发送的一段垃圾数据
-	netio.Write(conn, []byte(global.PROTOCOL_FEATURE))
+	//_, err := netio.Write(conn, []byte(global.PROTOCOL_FEATURE))
+	//if err != nil {
+	//	log.Println("[-]Error writing initial data:", err)
+	//	return false, nil
+	//}
 
 	var PacketHeader protocol.PacketHeader
-	netio.ReadPacket(conn, &PacketHeader)
+	err := netio.ReadPacket(conn, &PacketHeader)
+	if err != nil {
+		log.Println("[-]Error reading packet header:", err)
+		conn.Close()
+		return false, nil
+	}
+	if PacketHeader.Separator != global.PROTOCOL_SEPARATOR || PacketHeader.CmdType != protocol.INIT {
+		log.Println("[-]InitPacket error: separator or cmd type")
+		conn.Close()
+		return false, nil
+	}
 
 	if PacketHeader.Separator != global.PROTOCOL_SEPARATOR ||
 		PacketHeader.CmdType != protocol.INIT {
@@ -28,7 +42,12 @@ func ServerInitConnection(conn net.Conn) (bool, *Node) {
 	}
 
 	var initPacketCmd protocol.InitPacketCmd
-	netio.ReadPacket(conn, &initPacketCmd)
+	err = netio.ReadPacket(conn, &initPacketCmd)
+	if err != nil {
+		log.Println("[-]Error reading packet header:", err)
+		conn.Close()
+		return false, nil
+	}
 
 	initPacketRet := protocol.InitPacketRet{
 		OsType:  utils.GetSystemType(),
@@ -41,8 +60,18 @@ func ServerInitConnection(conn net.Conn) (bool, *Node) {
 		CmdType:   protocol.INIT,
 		DataLen:   size,
 	}
-	netio.WritePacket(conn, PacketHeader)
-	netio.WritePacket(conn, initPacketRet)
+	err = netio.WritePacket(conn, PacketHeader)
+	if err != nil {
+		log.Println("[-]Error writing packet header:", err)
+		conn.Close()
+		return false, nil
+	}
+	err = netio.WritePacket(conn, initPacketRet)
+	if err != nil {
+		log.Println("[-]Error writing init packet return:", err)
+		conn.Close()
+		return false, nil
+	}
 
 	// clientNode := &Node{
 	// 	HashID:        utils.Array32ToUUID(initPacketCmd.HashID),

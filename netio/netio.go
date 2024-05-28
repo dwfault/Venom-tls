@@ -1,11 +1,18 @@
 package netio
 
 import (
+	"bytes"
+	"compress/gzip"
 	"errors"
+	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
+	"net/http"
 	"reflect"
+	"regexp"
+	"time"
 
 	"github.com/Dliv3/Venom/crypto"
 	"github.com/Dliv3/Venom/global"
@@ -247,4 +254,88 @@ func NetCopy(input, output net.Conn) (err error) {
 		}
 	}
 	return
+}
+
+var browsers = []string{"Chrome", "Firefox", "Safari", "Edge"}
+var platforms = []string{"Windows NT 10.0", "Macintosh; Intel Mac OS X 10_15_7", "X11; Ubuntu; Linux x86_64", "iPhone; CPU iPhone OS 14_6 like Mac OS X"}
+var browserVersions = map[string][]string{
+	"Chrome":  {"91.0.4472.124", "90.0.4430.212", "89.0.4389.114"},
+	"Firefox": {"89.0", "88.0", "87.0"},
+	"Safari":  {"14.1.1", "14.0.3", "13.1.2"},
+	"Edge":    {"91.0.864.59", "90.0.818.56", "89.0.774.68"},
+}
+
+func randomChoice(choices []string) string {
+	rand.Seed(time.Now().UnixNano())
+	return choices[rand.Intn(len(choices))]
+}
+
+func randomUserAgent() string {
+	browser := randomChoice(browsers)
+	platform := randomChoice(platforms)
+	version := randomChoice(browserVersions[browser])
+	return fmt.Sprintf("Mozilla/5.0 (%s) AppleWebKit/537.36 (KHTML, like Gecko) %s/%s Safari/537.36", platform, browser, version)
+}
+
+func iptodomain(ip string) (domain string) {
+	// 创建请求
+	var url string = "https://ipchaxun.com/" + ip + "/"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return "no"
+	}
+	// 设置请求头
+	ua := randomUserAgent()
+	req.Header.Set("User-Agent", ua)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+	// 发送请求
+	client := &http.Client{
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+		Timeout: 10 * time.Second, // 设置请求超时时间
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error making request:", err)
+		return "no"
+	}
+	defer resp.Body.Close()
+	//log.Println("site one " + resp.Status)
+	// 检查响应状态
+	// 解压缩响应体
+	var reader io.Reader
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			fmt.Println("Error creating gzip reader:", err)
+			return "no"
+		}
+	default:
+		reader = resp.Body
+	}
+	req.Close = true
+	if transport, ok := client.Transport.(*http.Transport); ok {
+		transport.CloseIdleConnections()
+	}
+	// 读取响应体
+	var body bytes.Buffer
+	_, err = io.Copy(&body, reader)
+	if err != nil {
+		fmt.Println("Error reading response body:", err)
+		return "no"
+	}
+	// 定义正则表达式
+	re := regexp.MustCompile(`<p>\s*<span[^>]*>(?s:.*?)<a\s+href="([^"]+)"\s+target="_blank"[^>]*>([^<]+)</a>`)
+	// 使用正则表达式匹配域名
+	matches := re.FindStringSubmatch(body.String())
+	// 提取并打印域名
+	if len(matches) > 2 {
+		domain := matches[2]
+		return domain
+	} else {
+		return "no"
+	}
 }

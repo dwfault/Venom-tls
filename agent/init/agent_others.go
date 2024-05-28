@@ -1,3 +1,4 @@
+//go:build (windows || darwin) && (amd64 || 386)
 // +build windows darwin
 // +build amd64 386
 
@@ -19,7 +20,7 @@ func InitNode() {
 			netio.InitNode(
 				"listen",
 				fmt.Sprintf("%s:%d", cli.Args.LocalIP, uint16(cli.Args.ReusedPort)),
-				dispather.AgentServer, true, uint16(cli.Args.ReusedPort))
+				dispather.AgentServer, false, uint16(cli.Args.ReusedPort))
 		} else {
 			netio.InitNode(
 				"listen",

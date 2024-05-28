@@ -1,41 +1,67 @@
+//go:build 386 || amd64
 // +build 386 amd64
 
 package netio
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
 	"net"
-	"time"
-
-	"github.com/Dliv3/Venom/global"
-	reuseport "github.com/libp2p/go-reuseport"
+	"regexp"
 )
 
 var INIT_TYPE_ERROR = errors.New("init type error")
 
 const TIMEOUT = 2
 
-// InitNode 初始化节点间网络连接
-// handleFunc 处理net.Conn的函数
-// portReuse 是否以端口重用的方式初始化网络连接
-// reusedPort 被复用的端口，如果不使用端口复用，直接置零即可
+func loadTLSCertificate(certFile, keyFile string) tls.Certificate {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		fmt.Println("Error loading certificate:", err)
+	}
+	return cert
+}
+
 func InitNode(tcpType string, tcpService string, handlerFunc func(net.Conn), portReuse bool, reusedPort uint16) (err error) {
+	//sni
+	re1 := regexp.MustCompile(`^(\d+\.\d+\.\d+\.\d+):`)
+	match := re1.FindStringSubmatch(tcpService)
+	var ipname = match[1]
+	re2 := regexp.MustCompile(`^(192\.168|172\.(1[6-9]|2[0-9]|3[0-1])|10)\.`)
+	//
 	if tcpType == "connect" {
-		addr, err := net.ResolveTCPAddr("tcp", tcpService)
+		/*
+			f, err := os.OpenFile("keys.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+			if err != nil {
+				panic(err)
+			}
+			defer f.Close()
+		*/
+		//sni
+		tlsConfig := &tls.Config{
+			MinVersion:         tls.VersionTLS13,
+			InsecureSkipVerify: true,
+			NextProtos:         []string{"HTTP/2"},
+			//KeyLogWriter:       f,
+		}
+		if re2.MatchString(match[1]) {
+			tlsConfig.ServerName = ipname
+		} else {
+			domainname := iptodomain(ipname)
+			if domainname == "no" {
+				tlsConfig.ServerName = ipname
+			} else {
+				tlsConfig.ServerName = domainname
+			}
+		}
+
+		conn, err := tls.Dial("tcp", tcpService, tlsConfig)
 		if err != nil {
 			log.Println("[-]ResolveTCPAddr error:", err)
 			return err
 		}
-
-		conn, err := net.DialTCP("tcp", nil, addr)
-		if err != nil {
-			log.Println("[-]DialTCP error:", err)
-			return err
-		}
-
-		conn.SetKeepAlive(true)
 
 		go handlerFunc(conn)
 
@@ -44,94 +70,61 @@ func InitNode(tcpType string, tcpService string, handlerFunc func(net.Conn), por
 		var err error
 		var listener net.Listener
 
-		if portReuse {
-			listener, err = reuseport.Listen("tcp", tcpService)
-		} else {
-			addr, err := net.ResolveTCPAddr("tcp", tcpService)
-			if err != nil {
-				log.Println("[-]ResolveTCPAddr error:", err)
-				return err
-			}
-			listener, err = net.ListenTCP("tcp", addr)
+		tlsCfg := &tls.Config{
+			Certificates:       []tls.Certificate{loadTLSCertificate("./ssl.crt", "./ssl.key")},
+			MinVersion:         tls.VersionTLS13,
+			InsecureSkipVerify: true,
+			NextProtos:         []string{"HTTP/2"}, //not plain-text
 		}
+
+		listener, err = net.Listen("tcp", tcpService)
 
 		if err != nil {
 			log.Println("[-]ListenTCP error:", err)
 			return err
 		}
 
+		//new
+		tlsListener := tls.NewListener(listener, tlsCfg)
+		//
+
 		go func() {
 			for {
-				conn, err := listener.Accept()
+				//conn, err := listener.Accept()
+				conn, err := tlsListener.Accept()
 				if err != nil {
 					log.Println("[-]listener.Accept error:", err)
 					// continue
 					break
 				}
 
-				if portReuse {
-					appProtocol, data, timeout := isAppProtocol(conn)
-					if appProtocol || (!appProtocol && timeout) {
-						go func() {
-							// port := strings.Split(tcpService, ":")[1]
-							addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%d", reusedPort))
-							if err != nil {
-								log.Println("[-]ResolveTCPAddr error:", err)
-								return
-							}
-
-							server, err := net.DialTCP("tcp", nil, addr)
-							if err != nil {
-								log.Println("[-]DialTCP error:", err)
-								return
-							}
-
-							Write(server, data)
-							go NetCopy(conn, server)
-							NetCopy(server, conn)
-						}()
-						continue
-					}
-				}
+				//if portReuse {
+				//	appProtocol, data, timeout := isAppProtocol(conn)
+				//	if appProtocol || (!appProtocol && timeout) {
+				//		go func() {
+				//			// port := strings.Split(tcpService, ":")[1]
+				//			//addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%d", reusedPort))
+				//			//if err != nil {
+				//			//	log.Println("[-]ResolveTCPAddr error:", err)
+				//			//	return
+				//			//}
+				//
+				//			server, err := net.DialTCP("tcp", nil, addr)
+				//			if err != nil {
+				//				log.Println("[-]DialTCP error:", err)
+				//				return
+				//			}
+				//
+				//			Write(server, data)
+				//			go NetCopy(conn, server)
+				//			NetCopy(server, conn)
+				//		}()
+				//		continue
+				//	}
+				//}
 				go handlerFunc(conn)
 			}
 		}()
-		return nil
 	}
 	return INIT_TYPE_ERROR
-}
-
-// isAppProtocol
-// 返回值的第一个参数是标识协议是否为应用协议，判断前8字节是否为Venom发送的ABCDEFGH
-// 如果不是则为应用协议，否则为Venom协议
-func isAppProtocol(conn net.Conn) (bool, []byte, bool) {
-	var protocol = make([]byte, len(global.PROTOCOL_FEATURE))
-
-	defer conn.SetReadDeadline(time.Time{})
-
-	conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Second))
-
-	count, err := Read(conn, protocol)
-
-	timeout := false
-
-	if err != nil {
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			timeout = true
-			// mysql etc
-			// fmt.Println("timeout")
-			return false, protocol[:count], timeout
-		} else {
-			log.Println("[-]Read protocol packet error: ", err)
-			return false, protocol[:count], timeout
-		}
-	}
-
-	if string(protocol) == global.PROTOCOL_FEATURE {
-		// is node
-		return false, protocol[:count], timeout
-	} else {
-		// http etc
-		return true, protocol[:count], timeout
-	}
 }
