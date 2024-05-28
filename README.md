@@ -10,7 +10,8 @@ Use tls1.3 globally to hide the certificate into the encrypted traffic. Put ssl.
 对于公网IP作为目的地址的，反查域名填入TLS SNI字段，使通信流量更像业务通信；对于内网IP作为目的地址的，或反查无结果的，则TLS SNI字段置空。域名查询通过ipchaxun.com。
 For Internet IP as destination IP, Venom-tls lookup a domain by IP into TLS SNI to make traffic look like normal traffic. For Intranet IP as destination IP or failed lookup situations, TLS SNI is not set. Domain lookup is through ipchaxun.com.
 
-<img src="docs/sni.png" width="80%" height="80%" />
+下图由本地设定网卡IP后模拟：
+<img src="docs/sni.jpg" width="80%" height="80%" />
 
 注：需要go 1.21以上版本可以编译成功。
 Note: You need go 1.21 above to compile.
